@@ -102,8 +102,10 @@ function wipeContentsExcept(string $dir, array $except): void
 // public/ must be preserved as a directory here too (not just its storage/
 // child) — otherwise this top-level wipe would delete the whole folder,
 // storage/ included, before the second call below ever gets a chance to
-// selectively protect just that one subfolder.
-wipeContentsExcept($targetDir, ['storage', 'public']);
+// selectively protect just that one subfolder. .env is manually uploaded
+// here (excluded from deploy.zip on purpose, real secrets) — without this
+// exception every extraction deletes it and the app can't boot at all.
+wipeContentsExcept($targetDir, ['storage', 'public', '.env']);
 wipeContentsExcept($targetDir.'/public', ['storage']);
 
 $zip->extractTo($targetDir);
