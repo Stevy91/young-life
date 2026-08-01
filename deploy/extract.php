@@ -54,6 +54,12 @@ if ($zip->open($zipPath) !== true) {
 // gone for good.
 function rrmdir(string $dir): void
 {
+    if (is_link($dir)) {
+        unlink($dir);
+
+        return;
+    }
+
     if (! is_dir($dir)) {
         return;
     }
@@ -65,7 +71,17 @@ function rrmdir(string $dir): void
 
         $path = $dir.'/'.$item;
 
-        is_dir($path) ? rrmdir($path) : unlink($path);
+        // is_link() must be checked before is_dir(): is_dir() follows
+        // symlinks and returns true for a symlink pointing at a directory,
+        // which previously made this function recurse straight through
+        // public/storage and delete the real uploaded files behind it.
+        if (is_link($path)) {
+            unlink($path);
+        } elseif (is_dir($path)) {
+            rrmdir($path);
+        } else {
+            unlink($path);
+        }
     }
 
     rmdir($dir);
@@ -79,7 +95,13 @@ if (is_dir($targetDir)) {
 
         $path = $targetDir.'/'.$item;
 
-        is_dir($path) ? rrmdir($path) : unlink($path);
+        if (is_link($path)) {
+            unlink($path);
+        } elseif (is_dir($path)) {
+            rrmdir($path);
+        } else {
+            unlink($path);
+        }
     }
 } else {
     mkdir($targetDir, 0755, true);
