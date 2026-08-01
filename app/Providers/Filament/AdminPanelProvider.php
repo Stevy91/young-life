@@ -90,9 +90,17 @@ class AdminPanelProvider extends PanelProvider
      */
     protected function zoneNavigationItems(): array
     {
-        // Guards against the panel booting before migrations have run (e.g.
-        // a fresh test database) rather than hard-crashing every request.
-        if (! \Illuminate\Support\Facades\Schema::hasTable('zones')) {
+        // Guards against the panel booting before migrations have run, or
+        // before the database is even reachable at all (e.g. `composer
+        // install`'s package:discover step in CI, which boots the full
+        // framework with no .env/DB configured) — Schema::hasTable() itself
+        // needs a live connection, so a connection failure must be caught
+        // too, not just a missing table.
+        try {
+            if (! \Illuminate\Support\Facades\Schema::hasTable('zones')) {
+                return [];
+            }
+        } catch (\Throwable) {
             return [];
         }
 

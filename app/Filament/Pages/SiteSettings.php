@@ -37,14 +37,21 @@ class SiteSettings extends Page implements HasForms
     public ?array $data = [];
 
     /**
-     * Guards against the panel booting before migrations have run (e.g. a
-     * fresh test database), same pattern as AdminPanelProvider's zone nav.
+     * Guards against the panel booting before migrations have run, or before
+     * the database is reachable at all (e.g. `composer install`'s
+     * package:discover step in CI) — same pattern as AdminPanelProvider's
+     * zone nav, and for the same reason: Schema::hasTable() itself needs a
+     * live connection, so a connection failure must be caught too.
      */
     public static function currentTitle(): string
     {
-        return Schema::hasTable('settings')
-            ? Setting::get(self::SITE_TITLE_KEY, self::SITE_TITLE_DEFAULT)
-            : self::SITE_TITLE_DEFAULT;
+        try {
+            return Schema::hasTable('settings')
+                ? Setting::get(self::SITE_TITLE_KEY, self::SITE_TITLE_DEFAULT)
+                : self::SITE_TITLE_DEFAULT;
+        } catch (\Throwable) {
+            return self::SITE_TITLE_DEFAULT;
+        }
     }
 
     public static function shouldRegisterNavigation(): bool
