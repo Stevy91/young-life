@@ -46,14 +46,19 @@ if ($zip->open($zipPath) !== true) {
 // the repo would linger on the server forever, and this is also what
 // clears out folders left behind by an interrupted/cancelled deploy.
 //
-// storage/ is deliberately skipped: storage/app/public/ holds real
-// uploaded content (CMS images) that is excluded from deploy.zip on
-// purpose (see .github/workflows/deploy.yml) specifically so it's never
-// touched by a redeploy. Wiping laravel_app/ wholesale would delete it
-// right before extraction, since a wiped-then-not-reprovided folder is
-// gone for good.
+// laravel_app/storage/ and laravel_app/public/storage/ are deliberately
+// skipped: real uploaded content (CMS images) lives under one of these
+// (see PUBLIC_DISK_NO_SYMLINK in config/filesystems.php) and is excluded
+// from deploy.zip on purpose specifically so it's never touched by a
+// redeploy — wiping either wholesale would delete it right before
+// extraction, since a wiped-then-not-reprovided folder is gone for good.
 function rrmdir(string $dir): void
 {
+    // is_link() must be checked before is_dir(): is_dir() follows symlinks
+    // and returns true for a symlink pointing at a directory, which
+    // previously made this function recurse straight through a storage
+    // symlink and delete the real files behind it instead of just
+    // unlinking the pointer.
     if (is_link($dir)) {
         unlink($dir);
 
@@ -65,47 +70,39 @@ function rrmdir(string $dir): void
     }
 
     foreach (scandir($dir) as $item) {
-        if ($item === '.' || $item === '..') {
-            continue;
-        }
-
-        $path = $dir.'/'.$item;
-
-        // is_link() must be checked before is_dir(): is_dir() follows
-        // symlinks and returns true for a symlink pointing at a directory,
-        // which previously made this function recurse straight through
-        // public/storage and delete the real uploaded files behind it.
-        if (is_link($path)) {
-            unlink($path);
-        } elseif (is_dir($path)) {
-            rrmdir($path);
-        } else {
-            unlink($path);
+        if ($item !== '.' && $item !== '..') {
+            rrmdir($dir.'/'.$item);
         }
     }
 
     rmdir($dir);
 }
 
-if (is_dir($targetDir)) {
-    foreach (scandir($targetDir) as $item) {
-        if ($item === '.' || $item === '..' || $item === 'storage') {
+// Empties $dir's contents except any child named in $except, without
+// removing $dir itself.
+function wipeContentsExcept(string $dir, array $except): void
+{
+    if (! is_dir($dir)) {
+        mkdir($dir, 0755, true);
+
+        return;
+    }
+
+    foreach (scandir($dir) as $item) {
+        if ($item === '.' || $item === '..' || in_array($item, $except, true)) {
             continue;
         }
 
-        $path = $targetDir.'/'.$item;
-
-        if (is_link($path)) {
-            unlink($path);
-        } elseif (is_dir($path)) {
-            rrmdir($path);
-        } else {
-            unlink($path);
-        }
+        rrmdir($dir.'/'.$item);
     }
-} else {
-    mkdir($targetDir, 0755, true);
 }
+
+// public/ must be preserved as a directory here too (not just its storage/
+// child) — otherwise this top-level wipe would delete the whole folder,
+// storage/ included, before the second call below ever gets a chance to
+// selectively protect just that one subfolder.
+wipeContentsExcept($targetDir, ['storage', 'public']);
+wipeContentsExcept($targetDir.'/public', ['storage']);
 
 $zip->extractTo($targetDir);
 $zip->close();
