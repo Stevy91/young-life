@@ -5,6 +5,14 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\SiteSettings;
 use App\Filament\Pages\ZoneCamps;
+use App\Filament\Widgets\CampFillRateChart;
+use App\Filament\Widgets\DashboardStatsOverview;
+use App\Filament\Widgets\LatestRegistrationsTable;
+use App\Filament\Widgets\RegistrationsByCampChart;
+use App\Filament\Widgets\RegistrationsByCategoryChart;
+use App\Filament\Widgets\RegistrationsBySexeChart;
+use App\Filament\Widgets\RegistrationsByZoneChart;
+use App\Filament\Widgets\RegistrationsTrendChart;
 use App\Models\Zone;
 use Filament\Http\Middleware\Authenticate;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
@@ -54,10 +62,21 @@ class AdminPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
             ])
             ->navigationItems($this->zoneNavigationItems())
-            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
+            // Explicit list rather than discoverWidgets(): discovered widgets
+            // are keyed by their absolute file path (see vendor/filament/
+            // filament/src/Panel/Concerns/HasComponents.php), which broke
+            // Livewire hydration on Windows dev paths containing a space.
             ->widgets([
                 Widgets\AccountWidget::class,
                 Widgets\FilamentInfoWidget::class,
+                DashboardStatsOverview::class,
+                RegistrationsTrendChart::class,
+                RegistrationsByCampChart::class,
+                CampFillRateChart::class,
+                RegistrationsBySexeChart::class,
+                RegistrationsByCategoryChart::class,
+                RegistrationsByZoneChart::class,
+                LatestRegistrationsTable::class,
             ])
             ->middleware([
                 EncryptCookies::class,
