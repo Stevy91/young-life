@@ -66,6 +66,8 @@ function rrmdir(string $dir): void
     }
 
     if (! is_dir($dir)) {
+        unlink($dir);
+
         return;
     }
 
