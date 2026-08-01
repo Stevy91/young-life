@@ -46,6 +46,11 @@ jobs:
           mkdir ftp-payload
           mv deploy.zip ftp-payload/
 
+      # A unique state-name every run, since extract.php deletes deploy.zip
+      # after using it but the sync action's state file (if reused between
+      # runs) still says it's already uploaded — causing it to be skipped
+      # entirely on the next run. A fresh name each time means there is
+      # never a matching prior state, so the upload always happens.
       - name: Upload deploy.zip over FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -55,7 +60,7 @@ jobs:
           protocol: ftps
           local-dir: ./ftp-payload/
           server-dir: /
-          state-name: .ftp-deploy-zip-sync-state.json
+          state-name: .ftp-deploy-zip-sync-state-${{ github.run_id }}.json
 
       - name: Extract deploy.zip on the server
         run: curl -fsS "https://jennviyounglife.org/extract.php?token=${{ secrets.DEPLOY_TOKEN }}"
