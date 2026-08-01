@@ -40,7 +40,16 @@ return [
 
         'public' => [
             'driver' => 'local',
-            'root' => storage_path('app/public'),
+            // On the production host, the public/storage symlink Apache
+            // serves through was returning 403s that .htaccess grants
+            // couldn't fix (symlink-following restriction outside our
+            // control) — PUBLIC_DISK_NO_SYMLINK points this at a real
+            // directory inside public/ instead, no symlink involved.
+            // Local dev is unaffected (keeps the normal
+            // storage_path('app/public') + storage:link setup).
+            'root' => env('PUBLIC_DISK_NO_SYMLINK', false)
+                ? public_path('storage')
+                : storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,

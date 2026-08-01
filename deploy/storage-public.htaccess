@@ -1,0 +1,13 @@
+# Upload this MANUALLY as ".htaccess" inside laravel_app/storage/app/public/
+# on the server (the real physical location the public/storage symlink
+# points to). The deny-all in laravel_app/.htaccess appears to apply based
+# on the resolved filesystem path rather than the symlinked URL path, so
+# public/.htaccess's grant-all override alone isn't enough — this location
+# needs its own explicit grant too.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
