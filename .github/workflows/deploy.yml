@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,22 +32,33 @@ jobs:
           npm ci
           npm run build
 
-      - name: Deploy over FTPS
+      # Plain FTP does one network round-trip per file/folder — vendor/
+      # alone has thousands of them, which made a direct file-by-file
+      # upload take hours. Zipping into one file and extracting it
+      # server-side (via deploy/extract.php, uploaded once manually)
+      # turns that into a single fast transfer instead.
+      - name: Package build as a single zip
+        run: |
+          zip -rq deploy.zip . \
+            -x '.git/*' '.github/*' 'tests/*' 'node_modules/*' \
+            '.env' '.env.example' '.env.production' \
+            'deploy/*' 'storage/app/public/*' 'storage/logs/*' 'deploy.zip'
+          mkdir ftp-payload
+          mv deploy.zip ftp-payload/
+
+      - name: Upload deploy.zip over FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
-          server-dir: /laravel_app/
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/tests/**
-            .env
-            .env.example
-            .env.production
-            deploy/**
-            storage/app/public/**
-            storage/logs/**
+          local-dir: ./ftp-payload/
+          server-dir: /
+          state-name: .ftp-deploy-zip-sync-state.json
+
+      - name: Extract deploy.zip on the server
+        run: curl -fsS "https://jennviyounglife.org/extract.php?token=${{ secrets.DEPLOY_TOKEN }}"
+
+      - name: Run migrate + seed + storage:link on the server
+        run: curl -fsS "https://jennviyounglife.org/deploy/${{ secrets.DEPLOY_TOKEN }}"

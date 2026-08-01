@@ -17,6 +17,10 @@
     # Legacy admin tool stays reachable as-is.
     RewriteRule ^campyl(/.*)?$ - [L]
 
+    # Deploy helper (uploaded once, outside the app, never touched by CI
+    # again) must stay directly reachable to extract each new deploy.zip.
+    RewriteRule ^extract\.php$ - [L]
+
     # Everything else is served from the Laravel app's public/ folder.
     RewriteCond %{REQUEST_URI} !^/laravel_app/public/
     RewriteRule ^(.*)$ laravel_app/public/$1 [L]
