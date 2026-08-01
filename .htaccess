@@ -1,0 +1,12 @@
+# This file protects the Laravel application root when it is deployed into
+# a subfolder of a shared-hosting document root that has no folder "above"
+# the web root to hide app code in (see deploy/root.htaccess). It denies all
+# direct HTTP access to everything here (.env, app/, vendor/, database/...).
+# public/.htaccess carries its own override to stay reachable.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

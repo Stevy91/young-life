@@ -123,4 +123,18 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Remote Deploy Token
+    |--------------------------------------------------------------------------
+    |
+    | Guards the /deploy/{token} route (routes/web.php), which runs migrate +
+    | seed + storage:link over HTTP for hosts with no shell/SSH access. Leave
+    | unset to disable the route entirely (recommended once initial setup is
+    | done — just remove DEPLOY_TOKEN from .env).
+    |
+    */
+
+    'deploy_token' => env('DEPLOY_TOKEN'),
+
 ];

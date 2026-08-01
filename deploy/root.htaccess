@@ -1,0 +1,23 @@
+# Upload this file MANUALLY as ".htaccess" at the true FTP/document root
+# (jennviyounglife.org's "/" in FileZilla) — NOT inside laravel_app/.
+# It is not part of the app deploy (GitHub Actions only manages laravel_app/).
+#
+# What it does: leaves /campyl/ completely alone, and routes every other
+# request into laravel_app/public/ (where the Laravel app actually lives),
+# without exposing that folder name in the URL.
+#
+# IMPORTANT: if the current live .htaccess has other rules (https/www
+# redirect, DirectoryIndex, etc.), merge them in — don't just overwrite
+# blindly. Ask Claude to merge if unsure.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Legacy admin tool stays reachable as-is.
+    RewriteRule ^campyl(/.*)?$ - [L]
+
+    # Everything else is served from the Laravel app's public/ folder.
+    RewriteCond %{REQUEST_URI} !^/laravel_app/public/
+    RewriteRule ^(.*)$ laravel_app/public/$1 [L]
+</IfModule>

@@ -5,6 +5,7 @@ use App\Models\Arrondissement;
 use App\Models\Camp;
 use App\Models\ContactMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -55,3 +56,27 @@ Route::get('/admin/camps/{camp}/imprimer', function (Camp $camp, Request $reques
 
     return CampResource::exportRegistrationsPdf($camp, $arrondissement);
 })->name('camps.print-list');
+
+// One-time production setup for hosts with no shell/SSH access: runs
+// migrate + seed + storage:link over plain HTTP. Guarded by DEPLOY_TOKEN
+// (config/app.php) — remove that env var once setup is done to disable
+// this route entirely; it 403s whenever the token is unset.
+Route::get('/deploy/{token}', function (string $token) {
+    abort_unless(
+        filled(config('app.deploy_token')) && hash_equals(config('app.deploy_token'), $token),
+        403
+    );
+
+    $log = [];
+
+    foreach ([
+        ['migrate', ['--force' => true]],
+        ['db:seed', ['--force' => true]],
+        ['storage:link', []],
+    ] as [$command, $params]) {
+        Artisan::call($command, $params);
+        $log[] = "\$ php artisan {$command}\n".Artisan::output();
+    }
+
+    return response('<pre>'.e(implode("\n", $log)).'</pre>');
+})->name('deploy.run');

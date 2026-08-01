@@ -1,3 +1,13 @@
+# Overrides the deny-all in the parent (../.htaccess) — this folder is the
+# one part of the app meant to be web-reachable when deployed to a subfolder.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
