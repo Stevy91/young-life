@@ -43,9 +43,9 @@ class UserResource extends Resource
                 Forms\Components\TextInput::make('email')
                     ->label('Email')
                     ->email()
-                    ->required()
                     ->unique(ignoreRecord: true)
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? $state : null),
                 Forms\Components\TextInput::make('password')
                     ->label('Mot de passe')
                     ->password()
