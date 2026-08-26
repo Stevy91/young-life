@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\CampStatus;
 use App\Enums\RegistrationStatut;
 use App\Enums\Sexe;
 use App\Filament\Resources\RegistrationResource\Pages;
@@ -96,6 +97,23 @@ class RegistrationResource extends Resource
     }
 
     /**
+     * A camp only accepts new registrations while it's "Ouvert" — Brouillon
+     * (not published yet) and Fermé (closed) both block adding new people,
+     * matching what those statuses are supposed to mean. Super Admin can
+     * still add to a non-open camp for edge cases (late arrival, correction
+     * after closing), and editing an already-existing registration is never
+     * blocked by this — only creating a new one.
+     */
+    private static function campAcceptsNewRegistrations(?Camp $camp): bool
+    {
+        if (! $camp) {
+            return true;
+        }
+
+        return auth()->user()?->isSuperAdmin() || $camp->statut === CampStatus::Ouvert;
+    }
+
+    /**
      * Shared field schema, reused by the standalone resource form and by
      * CampResource's RegistrationsRelationManager so the two never drift
      * apart. Pass the owning $camp when it's already fixed (relation
@@ -142,7 +160,19 @@ class RegistrationResource extends Resource
                                         : $category->name,
                                 ]);
                         })
-                        ->disableOptionWhen(fn (string $value, ?Registration $record): bool => ! self::categoryHasCapacity((int) $value, $record?->id))
+                        ->disableOptionWhen(function (string $value, ?Registration $record): bool {
+                            if (! self::categoryHasCapacity((int) $value, $record?->id)) {
+                                return true;
+                            }
+
+                            // Only a brand new registration is blocked by camp status —
+                            // an existing one stays editable even if the camp closed since.
+                            if ($record !== null) {
+                                return false;
+                            }
+
+                            return ! self::campAcceptsNewRegistrations(CampCategory::find((int) $value)?->camp);
+                        })
                         ->helperText(fn (Get $get) => ($camp?->id ?? $get('camp_id')) ? null : "Choisissez d'abord un camp.")
                         ->searchable()
                         ->live()
@@ -150,6 +180,18 @@ class RegistrationResource extends Resource
                             fn (?Registration $record): \Closure => function (string $attribute, $value, \Closure $fail) use ($record) {
                                 if (! self::categoryHasCapacity((int) $value, $record?->id)) {
                                     $fail('Ce rôle a atteint son quota maximum de participants.');
+
+                                    return;
+                                }
+
+                                if ($record !== null) {
+                                    return;
+                                }
+
+                                $campOfCategory = CampCategory::find((int) $value)?->camp;
+
+                                if (! self::campAcceptsNewRegistrations($campOfCategory)) {
+                                    $fail("Ce camp n'est pas ouvert aux inscriptions (statut : {$campOfCategory->statut->getLabel()}).");
                                 }
                             },
                         ]),
