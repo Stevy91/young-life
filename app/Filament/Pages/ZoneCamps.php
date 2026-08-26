@@ -33,7 +33,7 @@ class ZoneCamps extends Page implements HasTable
 
     public ?int $selectedCampId = null;
 
-    public bool $showArchived = false;
+    public bool $showHidden = false;
 
     public function mount(Zone $zone): void
     {
@@ -64,22 +64,28 @@ class ZoneCamps extends Page implements HasTable
      * Camps recur every year under the same name (Konbit I, Konbit II...);
      * once a season ends it gets marked Archivé so it stops cluttering this
      * dashboard, but its data and history stay reachable via the toggle.
+     * Brouillon is hidden the same way: a camp that got fully set up but
+     * ended up not happening this time can be tucked away without being
+     * deleted, and reopened later by switching it back to Ouvert.
      */
     public function getCamps(): Collection
     {
         return $this->zone->camps()
             ->withCount('registrations')
             ->when(
-                ! $this->showArchived,
-                fn (Builder $query) => $query->where('statut', '!=', CampStatus::Archive->value),
+                ! $this->showHidden,
+                fn (Builder $query) => $query->whereNotIn('statut', [
+                    CampStatus::Archive->value,
+                    CampStatus::Brouillon->value,
+                ]),
             )
             ->orderBy('name')
             ->get();
     }
 
-    public function toggleShowArchived(): void
+    public function toggleShowHidden(): void
     {
-        $this->showArchived = ! $this->showArchived;
+        $this->showHidden = ! $this->showHidden;
     }
 
     /**

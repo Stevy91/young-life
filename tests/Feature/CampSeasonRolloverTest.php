@@ -18,7 +18,7 @@ class CampSeasonRolloverTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_archived_camps_are_hidden_by_default_and_shown_via_toggle(): void
+    public function test_archived_and_brouillon_camps_are_hidden_by_default_and_shown_via_toggle(): void
     {
         Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
 
@@ -29,6 +29,7 @@ class CampSeasonRolloverTest extends TestCase
         $zone = Zone::create(['name' => 'Test Zone Rollover']);
         $active = Camp::create(['name' => 'Konbit Actif', 'zone_id' => $zone->id, 'statut' => 'ouvert']);
         $archived = Camp::create(['name' => 'Konbit Vieux', 'zone_id' => $zone->id, 'statut' => 'archive']);
+        $draft = Camp::create(['name' => 'Konbit Annule', 'zone_id' => $zone->id, 'statut' => 'brouillon']);
 
         $component = Livewire::test(ZoneCamps::class, ['zone' => $zone]);
 
@@ -36,11 +37,12 @@ class CampSeasonRolloverTest extends TestCase
 
         $this->assertSame(['Konbit Actif'], $names());
 
-        $component->call('toggleShowArchived');
-        $this->assertEqualsCanonicalizing(['Konbit Actif', 'Konbit Vieux'], $names());
+        $component->call('toggleShowHidden');
+        $this->assertEqualsCanonicalizing(['Konbit Actif', 'Konbit Vieux', 'Konbit Annule'], $names());
 
         $active->delete();
         $archived->delete();
+        $draft->delete();
         $zone->delete();
         $user->delete();
     }

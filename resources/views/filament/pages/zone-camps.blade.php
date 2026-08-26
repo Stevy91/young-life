@@ -7,11 +7,11 @@
         <div class="flex items-center gap-2">
             <x-filament::button
                 icon="heroicon-o-archive-box"
-                wire:click="toggleShowArchived"
+                wire:click="toggleShowHidden"
                 color="gray"
                 outlined
             >
-                {{ $showArchived ? 'Masquer les camps archivés' : 'Afficher les camps archivés' }}
+                {{ $showHidden ? 'Masquer brouillons et archivés' : 'Afficher brouillons et archivés' }}
             </x-filament::button>
 
             @can('create', \App\Models\Camp::class)

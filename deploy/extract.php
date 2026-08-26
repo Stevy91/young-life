@@ -112,5 +112,13 @@ $zip->extractTo($targetDir);
 $zip->close();
 unlink($zipPath);
 
+// Some PHP setups cache compiled bytecode with timestamp checks disabled
+// (opcache.validate_timestamps=0), which would keep serving the previous
+// deploy's code until this process (or PHP-FPM) restarts on its own.
+// Harmless no-op if opcache isn't installed or already picks up changes.
+if (function_exists('opcache_reset')) {
+    opcache_reset();
+}
+
 header('Content-Type: text/plain');
 echo "OK: laravel_app/ wiped and deploy.zip extracted into it.\n";
