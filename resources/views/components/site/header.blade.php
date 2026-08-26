@@ -43,7 +43,11 @@
             @endforeach
         </nav>
 
-        <div class="hidden lg:block">
+        <div class="hidden lg:flex lg:items-center lg:gap-3">
+            <a href="{{ url('/admin/login') }}" class="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M6 10a.75.75 0 0 1 .75-.75h9.546l-1.048-.943a.75.75 0 1 1 1.004-1.114l2.5 2.25a.75.75 0 0 1 0 1.114l-2.5 2.25a.75.75 0 1 1-1.004-1.114l1.048-.943H6.75A.75.75 0 0 1 6 10Z" clip-rule="evenodd"/></svg>
+                Se connecter
+            </a>
             <a href="{{ route('contact') }}" class="inline-flex items-center rounded-full bg-[#7ec13d] px-5 py-2.5 text-sm font-bold text-[#07395b] shadow-lg shadow-[#7ec13d]/20 transition hover:bg-[#8fd44f]">
                 Contactez-nous
             </a>
@@ -72,6 +76,9 @@
                     </div>
                 @endif
             @endforeach
+            <a href="{{ url('/admin/login') }}" class="block rounded-lg px-3 py-2 text-base font-semibold text-white/70 hover:bg-white/10 hover:text-white">
+                Se connecter
+            </a>
         </nav>
     </div>
 </header>
