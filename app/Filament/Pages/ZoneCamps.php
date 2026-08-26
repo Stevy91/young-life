@@ -15,6 +15,7 @@ use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -141,6 +142,17 @@ class ZoneCamps extends Page implements HasTable
         return "Ce camp est actuellement « {$camp->statut->getLabel()} ».";
     }
 
+    /**
+     * Super Admin keeps the same override used for new registrations
+     * (RegistrationResource::campAcceptsNewRegistrations) — everyone else is
+     * fully blocked from editing or deleting a participant once the camp
+     * isn't Ouvert, not just warned.
+     */
+    private function isEditOrDeleteBlocked(): bool
+    {
+        return (bool) $this->campStatusWarning() && ! Auth::user()->isSuperAdmin();
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -217,23 +229,63 @@ class ZoneCamps extends Page implements HasTable
                 // outside a Filament Resource's own table, so "Lecteur"
                 // (read-only) needs this checked explicitly.
                 //
-                // Both stay fully functional on a non-Ouvert camp (fixing a
-                // typo or removing a duplicate shouldn't require reopening
-                // it) — they just warn first, via requiresConfirmation for
-                // Edit and via DeleteAction's own built-in confirmation for
-                // Delete, both reusing the same campStatusWarning() message.
+                // Both are fully blocked on a non-Ouvert camp — a popup
+                // explains why instead of silently doing nothing. Super Admin
+                // keeps the same override used everywhere else in this
+                // feature (see RegistrationResource::campAcceptsNewRegistrations).
                 Tables\Actions\EditAction::make()
                     ->visible(fn (Registration $record) => Auth::user()->can('update', $record))
-                    ->form(fn () => RegistrationResource::getFormSchema($this->getSelectedCamp()))
-                    ->requiresConfirmation(fn () => (bool) $this->campStatusWarning())
-                    ->modalDescription(fn () => $this->campStatusWarning()
-                        ? "{$this->campStatusWarning()} Vous pouvez tout de même modifier ce participant."
-                        : null),
+                    ->form(fn () => $this->isEditOrDeleteBlocked() ? [] : RegistrationResource::getFormSchema($this->getSelectedCamp()))
+                    ->modalHeading(fn () => $this->isEditOrDeleteBlocked() ? 'Camp non ouvert' : null)
+                    ->modalDescription(function () {
+                        $warning = $this->campStatusWarning();
+
+                        if (! $warning) {
+                            return null;
+                        }
+
+                        return Auth::user()->isSuperAdmin()
+                            ? "{$warning} En tant que Super Admin, vous pouvez tout de même modifier ce participant."
+                            : "{$warning} Impossible de modifier ce participant tant qu'il n'est pas réouvert.";
+                    })
+                    ->modalIcon(fn () => $this->isEditOrDeleteBlocked() ? 'heroicon-o-exclamation-triangle' : null)
+                    ->modalIconColor(fn () => $this->isEditOrDeleteBlocked() ? 'warning' : null)
+                    ->modalSubmitAction(fn ($action) => $this->isEditOrDeleteBlocked() ? false : $action)
+                    ->action(function (Registration $record, array $data): void {
+                        // Belt and suspenders: the empty form + hidden submit
+                        // button above are UX only, this is the real guard.
+                        if ($this->isEditOrDeleteBlocked()) {
+                            return;
+                        }
+
+                        $record->update($data);
+
+                        Notification::make()->title('Sauvegardé(e)')->success()->send();
+                    }),
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn (Registration $record) => Auth::user()->can('delete', $record))
-                    ->modalDescription(fn () => $this->campStatusWarning()
-                        ? "{$this->campStatusWarning()} Vous pouvez tout de même supprimer ce participant."
-                        : null),
+                    ->modalHeading(fn () => $this->isEditOrDeleteBlocked() ? 'Camp non ouvert' : null)
+                    ->modalDescription(function () {
+                        $warning = $this->campStatusWarning();
+
+                        if (! $warning) {
+                            return null;
+                        }
+
+                        return Auth::user()->isSuperAdmin()
+                            ? "{$warning} En tant que Super Admin, vous pouvez tout de même supprimer ce participant."
+                            : "{$warning} Impossible de supprimer ce participant tant qu'il n'est pas réouvert.";
+                    })
+                    ->modalSubmitAction(fn ($action) => $this->isEditOrDeleteBlocked() ? false : $action)
+                    ->action(function (Registration $record): void {
+                        if ($this->isEditOrDeleteBlocked()) {
+                            return;
+                        }
+
+                        $record->delete();
+
+                        Notification::make()->title('Supprimé(e)')->success()->send();
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

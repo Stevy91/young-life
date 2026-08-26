@@ -142,7 +142,7 @@ class CampStatusRegistrationEnforcementTest extends TestCase
         $this->assertNotNull(Registration::where('nom', 'Admin Added Camper')->first());
     }
 
-    public function test_deleting_an_existing_registration_is_allowed_even_after_the_camp_closed(): void
+    public function test_deleting_an_existing_registration_is_blocked_once_the_camp_is_closed(): void
     {
         $this->seedRoles();
 
@@ -165,10 +165,10 @@ class CampStatusRegistrationEnforcementTest extends TestCase
             ->call('selectCamp', $camp->id)
             ->callTableAction('delete', $registration);
 
-        $this->assertNull(Registration::find($registration->id));
+        $this->assertNotNull(Registration::find($registration->id));
     }
 
-    public function test_editing_an_existing_registration_is_allowed_even_after_the_camp_closed(): void
+    public function test_editing_an_existing_registration_is_blocked_once_the_camp_is_closed(): void
     {
         $this->seedRoles();
 
@@ -190,10 +190,44 @@ class CampStatusRegistrationEnforcementTest extends TestCase
         Livewire::test(ZoneCamps::class, ['zone' => $zone])
             ->call('selectCamp', $camp->id)
             ->mountTableAction('edit', $registration)
-            ->setTableActionData(['nom' => 'Camper Before Close Renamed', 'camp_category_id' => $campeur->id])
-            ->callMountedTableAction()
-            ->assertHasNoTableActionErrors();
+            ->setTableActionData(['nom' => 'Camper Before Close Renamed'])
+            ->callMountedTableAction();
 
-        $this->assertSame('Camper Before Close Renamed', $registration->fresh()->nom);
+        $this->assertSame('Camper Before Close', $registration->fresh()->nom);
+    }
+
+    public function test_super_admin_can_still_edit_and_delete_on_a_closed_camp(): void
+    {
+        $this->seedRoles();
+
+        $zone = Zone::create(['name' => 'Test Zone Admin Edit Delete Override']);
+        $camp = Camp::create(['name' => 'Test Camp Admin Edit Delete Override', 'zone_id' => $zone->id, 'statut' => 'ouvert']);
+        $campeur = $camp->categories()->where('name', 'Campeur')->first();
+
+        $registration = Registration::create([
+            'camp_id' => $camp->id,
+            'camp_category_id' => $campeur->id,
+            'nom' => 'Camper Before Close',
+        ]);
+
+        $camp->update(['statut' => 'ferme']);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('super_admin');
+        $this->actingAs($admin);
+
+        Livewire::test(ZoneCamps::class, ['zone' => $zone])
+            ->call('selectCamp', $camp->id)
+            ->mountTableAction('edit', $registration)
+            ->setTableActionData(['nom' => 'Camper Renamed By Admin', 'camp_category_id' => $campeur->id])
+            ->callMountedTableAction();
+
+        $this->assertSame('Camper Renamed By Admin', $registration->fresh()->nom);
+
+        Livewire::test(ZoneCamps::class, ['zone' => $zone])
+            ->call('selectCamp', $camp->id)
+            ->callTableAction('delete', $registration);
+
+        $this->assertNull(Registration::find($registration->id));
     }
 }
