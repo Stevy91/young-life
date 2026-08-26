@@ -40,6 +40,12 @@ class RegistrationResource extends Resource
      * selected category looks like a "Responsable" one (see
      * categorySuggestsResponsable()).
      */
+    private const MONTHS = [
+        1 => 'Jan', 2 => 'Fév', 3 => 'Mar', 4 => 'Avr',
+        5 => 'Mai', 6 => 'Juin', 7 => 'Juil', 8 => 'Août',
+        9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Déc',
+    ];
+
     private const TYPES_RESPONSABLE = [
         "Equipe d'assignation",
         'Conseiller',
@@ -111,6 +117,31 @@ class RegistrationResource extends Resource
         }
 
         return auth()->user()?->isSuperAdmin() || $camp->statut === CampStatus::Ouvert;
+    }
+
+    /**
+     * The Jour/Mois/Année selects don't map to a real column (dehydrated
+     * false) — this recomputes the real date_naissance field every time one
+     * of them changes, and blanks it back out if the combination is invalid
+     * (e.g. 31 février) rather than saving a wrong date.
+     */
+    private static function syncDateNaissance(Set $set, Get $get): void
+    {
+        $day = $get('date_naissance_day');
+        $month = $get('date_naissance_month');
+        $year = $get('date_naissance_year');
+
+        if (! $day || ! $month || ! $year) {
+            return;
+        }
+
+        if (! checkdate((int) $month, (int) $day, (int) $year)) {
+            $set('date_naissance', null);
+
+            return;
+        }
+
+        $set('date_naissance', \Illuminate\Support\Carbon::create((int) $year, (int) $month, (int) $day)->toDateString());
     }
 
     /**
@@ -205,9 +236,39 @@ class RegistrationResource extends Resource
                     Forms\Components\Select::make('sexe')
                         ->label('Sexe')
                         ->options(Sexe::class),
-                    Forms\Components\DatePicker::make('date_naissance')
-                        ->label('Date de naissance')
-                        ->native(false),
+                    Forms\Components\Fieldset::make('Date de naissance')
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Select::make('date_naissance_day')
+                                ->label('Jour')
+                                ->options(array_combine(range(1, 31), range(1, 31)))
+                                ->live()
+                                ->dehydrated(false)
+                                ->afterStateUpdated(fn (Set $set, Get $get) => self::syncDateNaissance($set, $get)),
+                            Forms\Components\Select::make('date_naissance_month')
+                                ->label('Mois')
+                                ->options(self::MONTHS)
+                                ->live()
+                                ->dehydrated(false)
+                                ->afterStateUpdated(fn (Set $set, Get $get) => self::syncDateNaissance($set, $get)),
+                            Forms\Components\Select::make('date_naissance_year')
+                                ->label('Année')
+                                ->options(array_combine(range(now()->year, now()->year - 100), range(now()->year, now()->year - 100)))
+                                ->live()
+                                ->dehydrated(false)
+                                ->afterStateUpdated(fn (Set $set, Get $get) => self::syncDateNaissance($set, $get)),
+                        ]),
+                    Forms\Components\Hidden::make('date_naissance')
+                        ->afterStateHydrated(function (?string $state, Set $set): void {
+                            if (blank($state)) {
+                                return;
+                            }
+
+                            $date = \Illuminate\Support\Carbon::parse($state);
+                            $set('date_naissance_day', $date->day);
+                            $set('date_naissance_month', $date->month);
+                            $set('date_naissance_year', $date->year);
+                        }),
                     Forms\Components\TextInput::make('lieu_naissance')
                         ->label('Lieu de naissance')
                         ->maxLength(255),
