@@ -52,6 +52,32 @@ class CampStatusRegistrationEnforcementTest extends TestCase
         $this->assertNull(Registration::where('nom', 'Late Camper')->first());
     }
 
+    /**
+     * Reproduces the exact reported bug: every role option is correctly
+     * disabled on a closed camp, but that alone doesn't stop the form from
+     * being submitted with camp_category_id left empty — the closure rule
+     * never ran at all for a null value, so nothing blocked the submission.
+     */
+    public function test_new_registration_with_no_category_selected_is_still_rejected_on_a_closed_camp(): void
+    {
+        $this->seedRoles();
+
+        $zone = Zone::create(['name' => 'Test Zone No Category Ferme']);
+        $camp = Camp::create(['name' => 'Test Camp No Category Ferme', 'zone_id' => $zone->id, 'statut' => 'ferme']);
+
+        $user = $this->makeZoneUser($zone);
+        $this->actingAs($user);
+
+        Livewire::test(ZoneCamps::class, ['zone' => $zone])
+            ->call('selectCamp', $camp->id)
+            ->mountTableAction('add_registration')
+            ->setTableActionData(['nom' => 'No Role Late Camper'])
+            ->callMountedTableAction()
+            ->assertHasTableActionErrors(['camp_category_id']);
+
+        $this->assertNull(Registration::where('nom', 'No Role Late Camper')->first());
+    }
+
     public function test_new_registration_is_rejected_when_camp_is_brouillon(): void
     {
         $this->seedRoles();
@@ -114,6 +140,32 @@ class CampStatusRegistrationEnforcementTest extends TestCase
             ->assertHasNoTableActionErrors();
 
         $this->assertNotNull(Registration::where('nom', 'Admin Added Camper')->first());
+    }
+
+    public function test_deleting_an_existing_registration_is_allowed_even_after_the_camp_closed(): void
+    {
+        $this->seedRoles();
+
+        $zone = Zone::create(['name' => 'Test Zone Delete After Close']);
+        $camp = Camp::create(['name' => 'Test Camp Delete After Close', 'zone_id' => $zone->id, 'statut' => 'ouvert']);
+        $campeur = $camp->categories()->where('name', 'Campeur')->first();
+
+        $registration = Registration::create([
+            'camp_id' => $camp->id,
+            'camp_category_id' => $campeur->id,
+            'nom' => 'Camper Before Close',
+        ]);
+
+        $camp->update(['statut' => 'ferme']);
+
+        $user = $this->makeZoneUser($zone);
+        $this->actingAs($user);
+
+        Livewire::test(ZoneCamps::class, ['zone' => $zone])
+            ->call('selectCamp', $camp->id)
+            ->callTableAction('delete', $registration);
+
+        $this->assertNull(Registration::find($registration->id));
     }
 
     public function test_editing_an_existing_registration_is_allowed_even_after_the_camp_closed(): void

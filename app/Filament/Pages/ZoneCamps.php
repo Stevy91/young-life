@@ -125,6 +125,22 @@ class ZoneCamps extends Page implements HasTable
         $this->resetTable();
     }
 
+    /**
+     * Null while the selected camp is Ouvert (nothing to warn about).
+     * Otherwise a short French sentence naming its actual status, reused as
+     * the basis for every "this camp isn't open" popup below.
+     */
+    private function campStatusWarning(): ?string
+    {
+        $camp = $this->getSelectedCamp();
+
+        if (! $camp || $camp->statut === CampStatus::Ouvert) {
+            return null;
+        }
+
+        return "Ce camp est actuellement « {$camp->statut->getLabel()} ».";
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -165,6 +181,26 @@ class ZoneCamps extends Page implements HasTable
                     // auto-check the Registration policy, so "Lecteur"
                     // (read-only) needs this checked explicitly.
                     ->visible(fn () => Auth::user()->can('create', Registration::class))
+                    ->modalHeading(fn () => $this->campStatusWarning() ? 'Camp non ouvert aux inscriptions' : 'Ajouter un participant')
+                    ->modalDescription(function () {
+                        $warning = $this->campStatusWarning();
+
+                        if (! $warning) {
+                            return null;
+                        }
+
+                        return Auth::user()->isSuperAdmin()
+                            ? "{$warning} En tant que Super Admin, vous pouvez tout de même ajouter un participant."
+                            : "{$warning} Aucune nouvelle inscription n'est possible tant qu'il n'est pas repassé à Ouvert.";
+                    })
+                    ->modalIcon(fn () => $this->campStatusWarning() ? 'heroicon-o-exclamation-triangle' : null)
+                    ->modalIconColor(fn () => $this->campStatusWarning() ? 'warning' : null)
+                    // The form itself is unchanged — the Rôle field already
+                    // disables every option and rejects submission via its
+                    // own validation rule (see RegistrationResource) when the
+                    // camp isn't Ouvert. This just adds the warning banner
+                    // above it explaining why, instead of a bare disabled
+                    // dropdown with no context.
                     ->form(fn () => RegistrationResource::getFormSchema($this->getSelectedCamp()))
                     ->action(function (array $data): void {
                         $data['camp_id'] = $this->selectedCampId;
@@ -180,11 +216,24 @@ class ZoneCamps extends Page implements HasTable
                 // EditAction/DeleteAction don't auto-check the model policy
                 // outside a Filament Resource's own table, so "Lecteur"
                 // (read-only) needs this checked explicitly.
+                //
+                // Both stay fully functional on a non-Ouvert camp (fixing a
+                // typo or removing a duplicate shouldn't require reopening
+                // it) — they just warn first, via requiresConfirmation for
+                // Edit and via DeleteAction's own built-in confirmation for
+                // Delete, both reusing the same campStatusWarning() message.
                 Tables\Actions\EditAction::make()
                     ->visible(fn (Registration $record) => Auth::user()->can('update', $record))
-                    ->form(fn () => RegistrationResource::getFormSchema($this->getSelectedCamp())),
+                    ->form(fn () => RegistrationResource::getFormSchema($this->getSelectedCamp()))
+                    ->requiresConfirmation(fn () => (bool) $this->campStatusWarning())
+                    ->modalDescription(fn () => $this->campStatusWarning()
+                        ? "{$this->campStatusWarning()} Vous pouvez tout de même modifier ce participant."
+                        : null),
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn (Registration $record) => Auth::user()->can('delete', $record)),
+                    ->visible(fn (Registration $record) => Auth::user()->can('delete', $record))
+                    ->modalDescription(fn () => $this->campStatusWarning()
+                        ? "{$this->campStatusWarning()} Vous pouvez tout de même supprimer ce participant."
+                        : null),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

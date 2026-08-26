@@ -175,6 +175,13 @@ class RegistrationResource extends Resource
                         ->columnSpanFull(),
                     Forms\Components\Select::make('camp_category_id')
                         ->label('Rôle')
+                        // Without this, leaving the field empty (the only
+                        // option once every role gets disabled on a closed
+                        // camp) skipped the closure rule below entirely —
+                        // an unselected value never triggered it, so a
+                        // registration could still be submitted with no
+                        // category and no camp-status check applied at all.
+                        ->required()
                         ->options(function (Get $get) use ($camp) {
                             $campId = $camp?->id ?? $get('camp_id');
 
