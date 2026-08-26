@@ -26,6 +26,30 @@ if ($expectedToken === '' || ! hash_equals($expectedToken, $token)) {
     exit('Forbidden');
 }
 
+// Clearing the opcode cache doesn't depend on a pending deploy.zip — this
+// runs unconditionally so visiting this URL alone (?clear_cache_only=1, no
+// zip needed) can be used to test/force it independently, e.g. while CI is
+// down and there's nothing new to extract yet.
+$opcacheStatus = function_exists('opcache_get_status') ? opcache_get_status(false) : false;
+$opcacheEnabled = $opcacheStatus !== false;
+$opcacheCleared = false;
+
+if (function_exists('opcache_reset')) {
+    $opcacheCleared = opcache_reset();
+}
+
+if (($_GET['clear_cache_only'] ?? '') === '1') {
+    header('Content-Type: text/plain');
+    echo 'Opcache enabled: '.($opcacheEnabled ? 'yes' : 'no')."\n";
+    echo 'Opcache reset called, returned: '.($opcacheCleared ? 'true (cleared)' : 'false (failed or nothing to clear)')."\n";
+
+    if ($opcacheEnabled) {
+        echo 'validate_timestamps: '.(ini_get('opcache.validate_timestamps') ?: '(unset)')."\n";
+    }
+
+    exit;
+}
+
 $zipPath = __DIR__.'/deploy.zip';
 $targetDir = __DIR__.'/laravel_app';
 
@@ -112,13 +136,7 @@ $zip->extractTo($targetDir);
 $zip->close();
 unlink($zipPath);
 
-// Some PHP setups cache compiled bytecode with timestamp checks disabled
-// (opcache.validate_timestamps=0), which would keep serving the previous
-// deploy's code until this process (or PHP-FPM) restarts on its own.
-// Harmless no-op if opcache isn't installed or already picks up changes.
-if (function_exists('opcache_reset')) {
-    opcache_reset();
-}
+// Opcache was already cleared unconditionally above.
 
 header('Content-Type: text/plain');
 echo "OK: laravel_app/ wiped and deploy.zip extracted into it.\n";
